@@ -119,7 +119,7 @@ export const MainForm = () => {
           name="username"
           render={({ field }) => (
             <FormItem className="w-full">
-              <FormLabel>Данные гостя</FormLabel>
+              <FormLabel>Данные гостя:</FormLabel>
               <FormControl>
                 <Input placeholder="Иванов Иван" {...field} />
               </FormControl>
