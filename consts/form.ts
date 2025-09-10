@@ -4,6 +4,6 @@ export const FOOD_OPTIONS = {
 };
 
 export const PRESENCE_OPTIONS = {
-  be: "Я приду / мы придем",
-  notBe: "К сожалению, меня/нас не будет",
+  be: "Я приду",
+  notBe: "К сожалению, меня не будет",
 };

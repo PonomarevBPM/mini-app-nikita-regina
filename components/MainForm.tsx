@@ -18,38 +18,13 @@ import { useEffect, useState } from "react";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 import { Checkbox } from "./ui/checkbox";
 import { FOOD_OPTIONS, PRESENCE_OPTIONS } from "@/consts/form";
+import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { Loader2Icon } from "lucide-react";
 
 const NAMES = "Имена и Фамилии";
 const PRESENCE = "Присутствие";
 const FOOD = "Выбор по еде";
 const ALCOHOL = "Выбор по алкоголю";
-
-const items = [
-  {
-    id: "recents",
-    label: "Recents",
-  },
-  {
-    id: "home",
-    label: "Home",
-  },
-  {
-    id: "applications",
-    label: "Applications",
-  },
-  {
-    id: "desktop",
-    label: "Desktop",
-  },
-  {
-    id: "downloads",
-    label: "Downloads",
-  },
-  {
-    id: "documents",
-    label: "Documents",
-  },
-] as const;
 
 const alcoholOptions = [
   "Игристое",
@@ -68,28 +43,17 @@ const formSchema = z.object({
   }),
   presence: z.enum(["be", "notBe"]),
   food: z.enum(["fish", "meat"]),
-  alcohol: z.array(z.string()).refine((value) => value.some((item) => item)),
+  alcohol: z.array(z.string()).refine((value) => value.some((item) => item), {
+    message: "Необходимо выбрать хотя бы один вариант",
+  }),
 });
-
-function onSubmit(values: z.infer<typeof formSchema>) {
-  fetch("/api/sheets", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      [NAMES]: values.username,
-      [PRESENCE]: PRESENCE_OPTIONS[values.presence],
-      [FOOD]: FOOD_OPTIONS[values.food],
-      [ALCOHOL]: values.alcohol.join(" | "),
-    }),
-  }).then((res) => console.log("Response:", res));
-}
 
 export const MainForm = () => {
   const initDataUser = useSignal(initData.user);
   const [isRegistered, setIsRegistered] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingAdding, setIsLoadingAdding] = useState(false);
+  const [isSubmited, setIsSubmited] = useLocalStorage("isSubmited", false);
 
   const register = (chatId: number) => {
     if (!isLoading) {
@@ -100,19 +64,38 @@ export const MainForm = () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ chat_id: chatId }),
-      }).then((res) => {
+      }).then(() => {
         setIsRegistered(true);
         setIsLoading(false);
       });
     }
   };
 
+  function onSubmit(values: z.infer<typeof formSchema>) {
+    if (!isLoadingAdding) {
+      setIsLoadingAdding(true);
+      fetch("/api/sheets", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          [NAMES]: values.username,
+          [PRESENCE]: PRESENCE_OPTIONS[values.presence],
+          [FOOD]: FOOD_OPTIONS[values.food],
+          [ALCOHOL]: values.alcohol.join(" | "),
+        }),
+      }).then((res) => {
+        setIsSubmited(true);
+        setIsLoadingAdding(false);
+      });
+    }
+  }
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      username: `${initDataUser?.last_name || ""} ${
-        initDataUser?.first_name || ""
-      }`,
+      username: "",
       food: "fish",
       presence: "be",
       alcohol: [],
@@ -125,28 +108,22 @@ export const MainForm = () => {
     }
   }, [isRegistered, initDataUser]);
 
-  useEffect(() => {
-    if (initDataUser?.username) {
-      form.setValue(
-        "username",
-        `${initDataUser?.last_name || ""} ${initDataUser?.first_name || ""}`
-      );
-    }
-  }, [initDataUser, form]);
-
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+      <form
+        onSubmit={form.handleSubmit(onSubmit)}
+        className="flex flex-col items-center gap-8"
+      >
         <FormField
           control={form.control}
           name="username"
           render={({ field }) => (
-            <FormItem>
-              <FormLabel>ФИО</FormLabel>
+            <FormItem className="w-full">
+              <FormLabel>Данные гостя</FormLabel>
               <FormControl>
-                <Input placeholder="shadcn" {...field} />
+                <Input placeholder="Иванов Иван" {...field} />
               </FormControl>
-              <FormDescription>Ваши имена и фамилии</FormDescription>
+              <FormDescription>Напишите ваше фамилию и имя</FormDescription>
               <FormMessage />
             </FormItem>
           )}
@@ -156,7 +133,7 @@ export const MainForm = () => {
           control={form.control}
           name="presence"
           render={({ field }) => (
-            <FormItem className="space-y-3">
+            <FormItem className="space-y-3 w-full">
               <FormLabel>Подтвердите свое присутствие:</FormLabel>
               <FormControl>
                 <RadioGroup
@@ -168,16 +145,14 @@ export const MainForm = () => {
                     <FormControl>
                       <RadioGroupItem value="be" />
                     </FormControl>
-                    <FormLabel className="font-normal">
-                      Я приду / мы придем
-                    </FormLabel>
+                    <FormLabel className="font-normal">Я приду</FormLabel>
                   </FormItem>
                   <FormItem className="flex items-center gap-3">
                     <FormControl>
                       <RadioGroupItem value="notBe" />
                     </FormControl>
                     <FormLabel className="font-normal">
-                      К сожалению, меня/нас не будет
+                      К сожалению, меня не будет
                     </FormLabel>
                   </FormItem>
                 </RadioGroup>
@@ -277,7 +252,25 @@ export const MainForm = () => {
           )}
         />
 
-        <Button type="submit">"Submit"</Button>
+        {!isSubmited && (
+          <Button type="submit" disabled={isLoading}>
+            {isLoadingAdding ? (
+              <Loader2Icon className="animate-spin" />
+            ) : (
+              "Отправить ответ"
+            )}
+          </Button>
+        )}
+        {isSubmited && <p>Спасибо, что заполнили анкету</p>}
+        {/* {isSubmited && (
+          <Button
+            onClick={() => {
+              setIsSubmited(false);
+            }}
+          >
+            Reset
+          </Button>
+        )} */}
       </form>
     </Form>
   );
